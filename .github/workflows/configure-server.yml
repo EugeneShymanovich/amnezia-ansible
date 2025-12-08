@@ -1,0 +1,60 @@
+name: Configure Server
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ip:
+        description: 'Target server IP address'
+        required: true
+        type: string
+      target_user:
+        description: 'SSH username'
+        required: true
+        default: 'develop'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Ansible
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip
+          pip3 install ansible
+
+      - name: Setup SSH Key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ inputs.target_ip }} >> ~/.ssh/known_hosts
+
+      - name: Test Connection
+        run: |
+          ansible all \
+            -i "${{ inputs.target_ip }}," \
+            -u ${{ inputs.target_user }} \
+            --private-key ~/.ssh/id_rsa \
+            -m ping
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: False
+
+      - name: Run Configuration Playbook
+        run: |
+          ansible-playbook \
+            -i "${{ inputs.target_ip }}," \
+            -u ${{ inputs.target_user }} \
+            --private-key ~/.ssh/id_rsa \
+            playbooks/setup.yml
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: False
