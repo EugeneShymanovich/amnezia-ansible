@@ -1,0 +1,77 @@
+---
+- name: Configure Ubuntu Server
+  hosts: all
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Display server information
+      debug:
+        msg: |
+          Configuring {{ inventory_hostname }}
+          IP: {{ ansible_host }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      register: apt_update
+
+    - name: Upgrade all packages
+      apt:
+        upgrade: dist
+        autoremove: yes
+        autoclean: yes
+      register: apt_upgrade
+
+    - name: Display upgrade results
+      debug:
+        msg: "{{ apt_upgrade.stdout_lines | default(['No output']) }}"
+
+    - name: Install fail2ban
+      apt:
+        name: fail2ban
+        state: present
+
+    - name: Ensure fail2ban is started and enabled
+      systemd:
+        name: fail2ban
+        state: started
+        enabled: yes
+
+    - name: Create fail2ban local configuration directory
+      file:
+        path: /etc/fail2ban/jail.d
+        state: directory
+        mode: '0755'
+
+    - name: Configure fail2ban for SSH
+      copy:
+        dest: /etc/fail2ban/jail.d/sshd.local
+        content: |
+          [sshd]
+          enabled = true
+          port = ssh
+          filter = sshd
+          logpath = /var/log/auth.log
+          maxretry = 5
+          bantime = 3600
+          findtime = 600
+        mode: '0644'
+      notify: Restart fail2ban
+
+    - name: Check fail2ban status
+      command: fail2ban-client status
+      register: fail2ban_status
+      changed_when: false
+
+    - name: Display fail2ban status
+      debug:
+        var: fail2ban_status.stdout_lines
+
+  handlers:
+    - name: Restart fail2ban
+      systemd:
+        name: fail2ban
+        state: restarted
