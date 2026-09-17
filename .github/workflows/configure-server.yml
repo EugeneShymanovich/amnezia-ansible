@@ -30,6 +30,15 @@ jobs:
           sudo apt-get install -y python3-pip
           pip3 install ansible
 
+      - name: Create Ansible Configuration
+        run: |
+          cat > ansible.cfg << EOF
+          [defaults]
+          interpreter_python = auto_silent
+          deprecation_warnings = False
+          host_key_checking = False
+          EOF
+
       - name: Setup SSH Key
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -46,8 +55,6 @@ jobs:
             -u ${{ inputs.target_user }} \
             --private-key ~/.ssh/id_rsa \
             -m ping
-        env:
-          ANSIBLE_HOST_KEY_CHECKING: False
 
       - name: Run Configuration Playbook
         run: |
@@ -56,5 +63,3 @@ jobs:
             -u ${{ inputs.target_user }} \
             --private-key ~/.ssh/id_rsa \
             playbooks/setup.yml
-        env:
-          ANSIBLE_HOST_KEY_CHECKING: False
